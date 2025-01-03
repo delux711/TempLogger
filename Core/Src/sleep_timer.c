@@ -30,8 +30,8 @@ void SleepTimer_DelayUs(uint32_t delay_us) {
 }
 
 void delay_us(uint32_t us) {
-    uint32_t count = (SystemCoreClock / 1000000) * us / 3; // Prepocet pre 16 MHz
-    while (count--) {
-        __NOP();  // No operation (prázdna inštrukcia)
+    uint32_t target_time = DWT->CYCCNT + (SystemCoreClock / 1000000) * us;  // Nastavenie cielového casu
+    while (DWT->CYCCNT < target_time) {
+        // Caká na uplynutie požadovaného casu
     }
 }
