@@ -29,6 +29,11 @@ void SleepTimer_DelayUs(uint32_t delay_us) {
     HAL_TIM_Base_Stop(&htim);               // Zastavenie casovaca
 }
 
+void delay_init(void) {
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;  // Povolenie DWT
+    DWT->CYCCNT = 0;  // Resetovanie cítaca
+}
+
 void delay_us(uint32_t us) {
     uint32_t target_time = DWT->CYCCNT + (SystemCoreClock / 1000000) * us;  // Nastavenie cielového casu
     while (DWT->CYCCNT < target_time) {

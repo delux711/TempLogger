@@ -12,7 +12,7 @@ static void OneWire_WriteByte(uint8_t data);
 static uint8_t OneWire_ReadByte(void);
 
 void Temperature_Init(void) {
-    SleepTimer_Init();
+    delay_init();
 
     // Nastavenie GPIO pinu pre DS18B20
     GPIO_InitTypeDef GPIO_InitStruct = {0};
