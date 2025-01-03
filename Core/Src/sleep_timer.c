@@ -1,6 +1,6 @@
 #include "sleep_timer.h"
 
-static TIM_HandleTypeDef htim;
+/*static TIM_HandleTypeDef htim;
 
 // Inicializácia casovaca
 void SleepTimer_Init(void) {
@@ -27,7 +27,7 @@ void SleepTimer_DelayUs(uint32_t delay_us) {
     }
 
     HAL_TIM_Base_Stop(&htim);               // Zastavenie casovaca
-}
+}*/
 
 void delay_init(void) {
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;  // Povolenie DWT
