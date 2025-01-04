@@ -4,6 +4,8 @@
 #include "stm32l476g_discovery_qspi.h"
 #include "stm32l476g_discovery.h"
 #include "flash_storage.h"
+#include "main.h"
+#include <stdbool.h>
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
 
@@ -43,10 +45,35 @@ int loggerAppl_start(void) {
     HAL_Delay(5000);             // Zobrazenie na 5 sekúnd
 */
     // Hlavná slucka
+    bool showUsb = false;      // Indikuje, ci sa má zobrazovat správa USB
+    bool usbPreviouslyConnected = false; // Stav predchádzajúceho pripojenia USB
+    uint32_t usbDisplayEndTime = 0;      // Cas, kedy skoncí zobrazovanie správy USB
+    uint32_t saveTimeEnd = 0u;
     while (1) {
-        // Nacítanie teploty z DS18B20
-        float temperature = Temperature_Read();
-        LCD_DisplayTemperature(temperature); // Zobrazenie na LCD
+        // Kontrola, ci je USB pripojené
+        bool usbConnected = (HAL_GPIO_ReadPin(USB_VBUS_GPIO_Port, USB_VBUS_Pin) == GPIO_PIN_SET);
+        // Ak sa USB novo pripojilo
+        if (usbConnected && !usbPreviouslyConnected) {
+            showUsb = true;
+            usbDisplayEndTime = DWT->CYCCNT + (SystemCoreClock / 1000000) * 5000000; // Nastavenie konca casu pre USB správu
+            LCD_DisplayMessage("-USB- ");  // Zobrazenie správy USB
+        }
+        // Ak uplynulo 5 sekúnd od zobrazenia USB správy
+        if (showUsb && (int32_t)(DWT->CYCCNT - usbDisplayEndTime) >= 0) {
+            showUsb = false;
+        }
+        // Ak sa má zobrazovat teplota
+        if (!showUsb) {
+            float temperature = Temperature_Read();    // Nacítanie teploty
+            LCD_DisplayTemperature(temperature);      // Zobrazenie teploty na LCD
+            if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
+                saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000000) * 4000000; // Nastavenie konca casu pre USB správu
+                flash_temperatureSave(temperature);
+            }
+        }
+        // Aktualizácia stavu USB
+        usbPreviouslyConnected = usbConnected;
+
 /*
         // Ukladanie do FLASH
         if (Flash_IsFull()) {
