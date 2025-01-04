@@ -67,7 +67,7 @@ int loggerAppl_start(void) {
             float temperature = Temperature_Read();    // Nacítanie teploty
             LCD_DisplayTemperature(temperature);      // Zobrazenie teploty na LCD
             if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
-                saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000000) * 4000000; // Nastavenie konca casu pre USB správu
+                saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000000) * 4000000; // Nastavenie case pre buduce ulozenie teploty
                 flash_temperatureSave(temperature);
             }
         }
