@@ -9,10 +9,6 @@
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
 
-static bool showUsb = false;      // Indikuje, ci sa má zobrazovat správa USB
-static bool usbPreviouslyConnected = false; // Stav predchádzajúceho pripojenia USB
-static uint32_t usbDisplayEndTime = 0;      // Cas, kedy skoncí zobrazovanie správy USB
-
 static void logger_GPIO_Init(void);
 
 int loggerAppl_start(void) {
@@ -49,6 +45,10 @@ int loggerAppl_start(void) {
     HAL_Delay(5000);             // Zobrazenie na 5 sekúnd
 */
     // Hlavná slucka
+    bool showUsb = false;      // Indikuje, ci sa má zobrazovat správa USB
+    bool usbPreviouslyConnected = false; // Stav predchádzajúceho pripojenia USB
+    uint32_t usbDisplayEndTime = 0;      // Cas, kedy skoncí zobrazovanie správy USB
+    uint32_t saveTimeEnd = 0u;
     while (1) {
         // Kontrola, ci je USB pripojené
         bool usbConnected = (HAL_GPIO_ReadPin(USB_VBUS_GPIO_Port, USB_VBUS_Pin) == GPIO_PIN_SET);
@@ -56,7 +56,7 @@ int loggerAppl_start(void) {
         if (usbConnected && !usbPreviouslyConnected) {
             showUsb = true;
             usbDisplayEndTime = DWT->CYCCNT + (SystemCoreClock / 1000000) * 5000000; // Nastavenie konca casu pre USB správu
-            LCD_DisplayMessage("-USB-");  // Zobrazenie správy USB
+            LCD_DisplayMessage("-USB- ");  // Zobrazenie správy USB
         }
         // Ak uplynulo 5 sekúnd od zobrazenia USB správy
         if (showUsb && (int32_t)(DWT->CYCCNT - usbDisplayEndTime) >= 0) {
@@ -66,6 +66,10 @@ int loggerAppl_start(void) {
         if (!showUsb) {
             float temperature = Temperature_Read();    // Nacítanie teploty
             LCD_DisplayTemperature(temperature);      // Zobrazenie teploty na LCD
+            if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
+                saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000000) * 4000000; // Nastavenie konca casu pre USB správu
+                flash_temperatureSave(temperature);
+            }
         }
         // Aktualizácia stavu USB
         usbPreviouslyConnected = usbConnected;
