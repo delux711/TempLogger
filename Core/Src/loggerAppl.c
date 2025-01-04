@@ -3,13 +3,15 @@
 #include "lcd_display.h"
 #include "stm32l476g_discovery_qspi.h"
 #include "stm32l476g_discovery.h"
-//#include "flash_storage.h"
+#include "flash_storage.h"
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
 
+static void logger_GPIO_Init(void);
+
 int loggerAppl_start(void) {
     // Inicializácia GPIO
-//    MX_GPIO_Init();
+    logger_GPIO_Init();
 
     /*
     LCD_Init();
@@ -60,7 +62,7 @@ int loggerAppl_start(void) {
     }
 }
 
-void MX_GPIO_Init(void) {
+static void logger_GPIO_Init(void) {
     // Inicializácia GPIO pre DS18B20, LED, tlacidlá a iné periférie
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();

@@ -98,10 +98,11 @@ static uint8_t OneWire_ReadByte(void) {
         HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_RESET);
         delay_us(2); // Zaciatok cítania
         HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
+        delay_us(2);
         if (HAL_GPIO_ReadPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN)) {
             data |= (1 << i);
         }
-        delay_us(60);
+        delay_us(58);
     }
     return data;
 }
