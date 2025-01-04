@@ -56,7 +56,7 @@ int loggerAppl_start(void) {
         if (usbConnected && !usbPreviouslyConnected) {
             showUsb = true;
             usbDisplayEndTime = DWT->CYCCNT + (SystemCoreClock / 1000000) * 5000000; // Nastavenie konca casu pre USB správu
-            LCD_DisplayMessage("-USB-");  // Zobrazenie správy USB
+            LCD_DisplayMessage("-USB- ");  // Zobrazenie správy USB
         }
         // Ak uplynulo 5 sekúnd od zobrazenia USB správy
         if (showUsb && (int32_t)(DWT->CYCCNT - usbDisplayEndTime) >= 0) {

@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 #include "lcd.h"
 #include "quadspi.h"
 #include "usb_device.h"
@@ -92,6 +93,7 @@ int main(void)
   MX_LCD_Init();
   MX_QUADSPI_Init();
   MX_USB_DEVICE_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */

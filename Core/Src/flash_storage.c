@@ -1,8 +1,38 @@
 #include "flash_storage.h"
 #include "stm32l476g_discovery_qspi.h"  // Tento súbor poskytuje funkcie pre prácu s QSPI
+#include "fatfs.h"
 
-static uint32_t nextEmptyAddr = 0u;
+FIL                       File;
+FATFS                     FatFs;
+
+// static uint32_t nextEmptyAddr = 0u;
 void flash_temperatureInit(void) {
+	/* Pracovný priestor */
+    BYTE work[4096];
+    /* init code for FATFS */
+    MX_FATFS_Init();
+	if(f_mount(&FatFs, (TCHAR const*)USERPath, 1) != FR_OK)
+	  {
+		/* FatFs Initialization Error */
+		if (f_mkfs((TCHAR const*)USERPath, 0, 128, work, sizeof(work)) != FR_OK)
+		{
+		  Error_Handler();
+		}
+		else {
+		  /* Second trial to register the file system object */
+		  if(f_mount(&FatFs, (TCHAR const*)USERPath, 1) != FR_OK)
+		  {
+			Error_Handler();
+		  }
+		}
+	  }
+	  /* FatFS file write test */
+  if(f_open(&File, "FATFSOK", FA_CREATE_NEW | FA_WRITE) == FR_OK)
+  {
+    f_printf(&File, "FatFS is working properly.\n");
+    f_close(&File);
+  }
+	/*
     uint32_t data;
     if(QSPI_OK != BSP_QSPI_Init()) {
         for(;;);
@@ -15,7 +45,7 @@ void flash_temperatureInit(void) {
             break;
         }
     }
-    (void)nextEmptyAddr;
+    (void)nextEmptyAddr;*/
 }
 
 // Funkcia na zápis teploty do FLASH
