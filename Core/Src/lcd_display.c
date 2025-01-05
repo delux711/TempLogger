@@ -20,6 +20,6 @@ void LCD_DisplayMessage(const char *message) {
 
 void LCD_DisplayCount(uint32_t count) {
     char buffer[7]; // Priestor pre zobrazenie, napr. "Cnt123"
-    snprintf(buffer, sizeof(buffer), "Cnt%lu", count);
+    snprintf(buffer, sizeof(buffer), "%6lu", count);
     BSP_LCD_GLASS_DisplayString((uint8_t *)buffer);
 }
