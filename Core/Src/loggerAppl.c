@@ -91,7 +91,7 @@ int loggerAppl_start(void) {
 
                 // Ak USB nie je pripojené, zapisuje sa teplota do FLASH každé 4 sekundy
                 if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
-                    saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 4000; // Každé 4 sekundy
+                    saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 30000; // Zapis kazdych 30 sekund
                     if (!flash_temperatureSave(temperature)) {
                         LCD_DisplayMessage("-FULL-");
                         showMessage = true;

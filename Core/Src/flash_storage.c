@@ -6,6 +6,7 @@
 #define RECORD_SIZE         4           // Velkost jednÈho z·znamu (napr. 4 bajtov)
 #define BLOCK_SIZE          256          // Velkost bloku na cÌtanie (napr. 256 bajtov)
 #define SECTOR_SIZE         0x1000
+#define FULL_FILE_SIZE      0x10000
 #define QSPI_MEMORY_FULL 0xFFFFFFFFU // Indikuje pln˙ pam‰t
 
 static uint32_t freePosition = 0u;
@@ -41,7 +42,7 @@ static uint32_t find_free_position(void) {
 
     // Hæadanie voænej pozÌcie v n·jdenom sektore
     addr = sector_start;
-    while (addr < (sector_start + SECTOR_SIZE)) {
+    while (addr < (sector_start + FULL_FILE_SIZE)) {
         if (BSP_QSPI_Read(buffer, addr, BLOCK_SIZE) != QSPI_OK) {
             // Spracujte chybu ËÌtania
             return QSPI_END_ADDRESS;
@@ -65,37 +66,6 @@ static uint32_t find_free_position(void) {
     return sector_start + 0x1000;
 }
 
-/*
-static uint32_t find_free_position(void) {
-    uint8_t buffer[BLOCK_SIZE]; // Buffer na cÌtanie blokov
-    uint32_t addr = QSPI_START_ADDRESS;
-
-    while (addr < QSPI_END_ADDRESS) {
-        // PrecÌtajte cel˝ blok z pam‰te
-        if (BSP_QSPI_Read(buffer, addr, BLOCK_SIZE) != QSPI_OK) {
-            // Spracujte chybu cÌtania
-            return QSPI_END_ADDRESS; // Vr·time koniec pam‰te ako bezpecn˙ hodnotu
-        }
-
-        // Skontrolujte kaûd˝ z·znam v bloku
-        for (uint32_t i = 0; i < BLOCK_SIZE; i++) {
-            uint32_t *record = (uint32_t *)&buffer[i];
-
-            // Ak je hodnota 0xFFFFFFFF, naöli sme voln˙ pozÌciu
-            if (*record == 0xFFFFFFFF) {
-                return addr + i; // Vr·time adresu volnÈho z·znamu
-            }
-        }
-
-        // Posunte sa na dalöÌ blok
-        addr += BLOCK_SIZE;
-    }
-
-    // Ak sa nic nenaölo, pam‰t je pln·
-    return QSPI_END_ADDRESS;
-}
-*/
-
 void flash_temperatureInit(void) {
     if(QSPI_OK != BSP_QSPI_Init()) {
         for(;;);
@@ -115,7 +85,7 @@ bool flash_temperatureSave(float temperature) {
     counter = (freePosition - sector_start) / RECORD_SIZE;
 
     // Skontrolujeme, Ëi je voæn· pozÌcia platn· a Ëi sme neprekroËili maxim·lny poËet z·pisov
-    if (freePosition >= (sector_start + SECTOR_SIZE)) {
+    if (freePosition >= (sector_start + FULL_FILE_SIZE)) { // 64kB je velkost suboru
         // VoænÈ miesto nie je dostupnÈ, n·vrat alebo spracovanie chyby
         return false; // AlternatÌvne mÙûete volaù funkciu na signaliz·ciu chyby
     }
