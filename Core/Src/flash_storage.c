@@ -1,69 +1,61 @@
 #include "flash_storage.h"
 #include "stm32l476g_discovery_qspi.h"  // Tento s˙bor poskytuje funkcie pre pr·cu s QSPI
 
-#define QSPI_START_ADDRESS  0x00000000U  // Zaciatok QSPI pam‰te
-#define QSPI_END_ADDRESS    0x000FFFFFU  // Koniec QSPI pam‰te (napr. 1 MB)
-#define RECORD_SIZE         4           // Velkost jednÈho z·znamu (napr. 4 bajtov)
-#define BLOCK_SIZE          256          // Velkost bloku na cÌtanie (napr. 256 bajtov)
-#define SECTOR_SIZE         0x1000
-#define FULL_FILE_SIZE      0x10000
-#define QSPI_MEMORY_FULL 0xFFFFFFFFU // Indikuje pln˙ pam‰t
+#define QSPI_START_ADDRESS  0x00000000U  // ZaËiatok QSPI pam‰te
+#define RECORD_SIZE         4           // Veækosù jednÈho z·znamu (napr. 4 bajty)
+#define BLOCK_SIZE          256         // Velkost bloku na cÌtanie (napr. 256 bajtov)
+#define SECTOR_SIZE         0x1000      // Veækosù sektora (4 kB)
+#define FULL_FILE_SIZE      0x10000     // Veækosù "s˙boru" (64 kB)
+#define QSPI_MEMORY_FULL 0xFFFFFFFFU    // Indikuje pln˙ pam‰t
+#define PATTERN_BASE        0x12345670U // Z·kladn˝ identifik·tor pre sektory
+#define PATTERN_END         0x1234567FU // Posledn˝ platn˝ identifik·tor
 
-static uint32_t freePosition = 0u;
-static uint32_t sector_start = 0u;       // Adresa zaËiatku n·jdenÈho sektora
 static uint16_t counter = 0u;
+static uint32_t freePosition = 0U;       // Adresa voænej pozÌcie na z·pis
 
 static uint32_t find_free_position(void) {
-    uint8_t buffer[BLOCK_SIZE];       // Buffer na ËÌtanie blokov
     uint32_t addr = QSPI_START_ADDRESS;
+    uint32_t pattern;
 
-    // Hæadanie sektora s identifik·torom 0x12345678
-    while (addr < QSPI_END_ADDRESS) {
-        if (BSP_QSPI_Read(buffer, addr, 4) != QSPI_OK) {
-            // Spracujte chybu ËÌtania
-            return QSPI_END_ADDRESS;
-        }
+    counter = 0u;
+    // Prehæadanie sektorov na pattern od 0x12345670 aû 0x1234567F
+    for (uint8_t x = 0x00; x <= 0x0F; x++) {
+        uint32_t expectedPattern = 0x70563412U | (x << 24);  // Vytvorte poûadovan˝ pattern s X od 0 do F
 
-        // Skontrolujeme prvÈ 4 bajty v sektore
-        uint32_t *sector_id = (uint32_t *)&buffer[0];
-        if (*sector_id == 0x78563412) {
-            sector_start = addr; // UloûÌme adresu zaËiatku sektora
-            break;
-        }
+        // Prehæad·me sektory v pam‰ti
+        while (addr < N25Q128A_FLASH_SIZE) {
+            // »Ìtame prvÈ 4 bajty (pattern) na zaËiatku sektora
+            BSP_QSPI_Read((uint8_t*)&pattern, addr, sizeof(pattern));
 
-        // Posunieme sa na ÔalöÌ sektor
-        addr += SECTOR_SIZE; // Veækosù sektora je 0x1000
-    }
+            // Overenie, Ëi pattern zodpoved· poûadovanÈmu patternu
+            if (pattern == expectedPattern) {
+                // Naöli sme platn˝ sektor, zaËÌname hæadaù voæn˙ pozÌciu
+                uint32_t offset = addr + sizeof(pattern);
+                uint8_t buffer[BLOCK_SIZE];
 
-    // Ak nebol sektor n·jden˝, vr·time chybu
-    if (sector_start == 0) {
-        return QSPI_END_ADDRESS;
-    }
+                while (offset < (addr + SECTOR_SIZE)) {
+                    // »Ìtanie bloku (256 bajtov naraz)
+                    BSP_QSPI_Read(buffer, offset, BLOCK_SIZE);
 
-    // Hæadanie voænej pozÌcie v n·jdenom sektore
-    addr = sector_start;
-    while (addr < (sector_start + FULL_FILE_SIZE)) {
-        if (BSP_QSPI_Read(buffer, addr, BLOCK_SIZE) != QSPI_OK) {
-            // Spracujte chybu ËÌtania
-            return QSPI_END_ADDRESS;
-        }
-
-        // Skontrolujte kaûd˝ z·znam v bloku
-        for (uint32_t i = 4; i < BLOCK_SIZE; i += RECORD_SIZE) {
-            uint32_t *record = (uint32_t *)&buffer[i];
-
-            // Ak je hodnota 0xFFFFFFFF, naöli sme voæn˙ pozÌciu
-            if (*record == 0xFFFFFFFF) {
-                return addr + i; // Vr·time adresu voænÈho z·znamu
+                    // Prehæadanie bloku po jednotliv˝ch z·znamoch (kaûd˝ m· veækosù RECORD_SIZE)
+                    for (uint32_t i = 0; i < BLOCK_SIZE; i += RECORD_SIZE) {
+                        uint32_t *record = (uint32_t*)&buffer[i];
+                        if (*record == 0xFFFFFFFFU) {
+                            return offset + i; // Naöli sme voæn˙ pozÌciu
+                        }
+                        counter++; // Zvyöujeme poËÌtadlo pri n·jdenÌ platnÈho z·znamu
+                    }
+                    // Posunieme sa na ÔalöÌ blok
+                    offset += BLOCK_SIZE;
+                }
             }
+
+            // Posunieme sa na ÔalöÌ sektor
+            addr += SECTOR_SIZE;
         }
-
-        // Posunieme sa na ÔalöÌ blok v r·mci sektora
-        addr += BLOCK_SIZE;
     }
-
-    // Ak sektor nem· voænÈ miesto, vr·time koniec sektora
-    return sector_start + 0x1000;
+    
+    return QSPI_MEMORY_FULL; // Ak sme nenaöli voænÈ miesto
 }
 
 void flash_temperatureInit(void) {
@@ -77,30 +69,33 @@ void flash_updateCounter(void) {
     freePosition = find_free_position();    
 }
 
-// Funkcia na z·pis teploty do FLASH - true ak OK
 bool flash_temperatureSave(float temperature) {
     uint8_t data[RECORD_SIZE];
-    int16_t temp = (int16_t)(temperature * 16); // Predpoklad·me, ûe teplota je v 16-bitovom form·te
-    
-    counter = (freePosition - sector_start) / RECORD_SIZE;
+    int16_t temp = (int16_t)(temperature * 16); // Konverzia teploty
 
-    // Skontrolujeme, Ëi je voæn· pozÌcia platn· a Ëi sme neprekroËili maxim·lny poËet z·pisov
-    if (freePosition >= (sector_start + FULL_FILE_SIZE)) { // 64kB je velkost suboru
-        // VoænÈ miesto nie je dostupnÈ, n·vrat alebo spracovanie chyby
-        return false; // AlternatÌvne mÙûete volaù funkciu na signaliz·ciu chyby
+    // Skontrolujeme, Ëi je voæn· pozÌcia platn·
+    if (freePosition >= N25Q128A_FLASH_SIZE || freePosition == QSPI_MEMORY_FULL) {
+        return false; // Pam‰ù je pln·
     }
-
+    counter++;  // Inkrement·cia counteru pri kaûdom z·pise teploty
+    
     // Konverzia teploty na 4-bajtovÈ d·ta
     data[0] = (uint8_t)(temp & 0xFF);        // LSB
     data[1] = (uint8_t)((temp >> 8) & 0xFF); // MSB
-    data[2] = (counter & 0xFF00u) >> 8u;  // Doplnuj˙ci bajt pre cas alebo in˙ hodnotu
-    data[3] = counter & 0xFFu;            // Doplnuj˙ci bajt pre cas alebo in˙ hodnotu
+    data[2] = (counter & 0xFF00u) >> 8u;  // Doplnuj˙ci bajt pre Ëas alebo in˙ hodnotu
+    data[3] = counter & 0xFFu;            // Doplnuj˙ci bajt pre Ëas alebo in˙ hodnotu
 
     // Z·pis do FLASH
     BSP_QSPI_Write(data, freePosition, sizeof(data));
 
-    // Aktualizujeme freePosition na dalöiu voln˙ pozÌciu
+    // Aktualiz·cia voænej pozÌcie
     freePosition += RECORD_SIZE;
+
+    // Ak prekroËÌme hranicu sektora, hæad·me ÔalöÌ
+    if (freePosition % SECTOR_SIZE == 0) {
+        freePosition = find_free_position();
+    }
+
     return true;
 }
 

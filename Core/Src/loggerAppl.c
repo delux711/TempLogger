@@ -15,35 +15,21 @@ int loggerAppl_start(void) {
     // Inicializácia GPIO
     logger_GPIO_Init();
 
-    /*
-    LCD_Init();
-    LCD_DisplayTemperature(25.5);
-    HAL_Delay(2000);
-    LCD_DisplayMessage("Hello");
-    HAL_Delay(2000);
-    LCD_DisplayCount(123);
-    HAL_Delay(2000);
-    */
     // Inicializácia modulov
     LCD_Init();              // Inicializácia LCD displeja
     Temperature_Init();      // Inicializácia DS18B20
     flash_temperatureInit();
-    (void)BSP_JOY_Init(JOY_MODE_GPIO);
+    while(HAL_OK != BSP_JOY_Init(JOY_MODE_GPIO));
     if(JOY_SEL == BSP_JOY_GetState()) {
-        if(QSPI_OK != BSP_QSPI_Erase_Chip())
-        {
-            while(1);
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+        for(uint16_t sector = 0u; sector < 256u; sector++) {
+            if(QSPI_OK != BSP_QSPI_Erase_Sector(sector)) {
+                while(1);
+            }
+            while(QSPI_OK != BSP_QSPI_GetStatus());
         }
     }
-/*    Flash_Init();            // Inicializácia FLASH pamäte
-    USB_Init();              // Inicializácia USB
-    LowPower_Init();         // Inicializácia režimov nízkej spotreby
-*/
-    // Pocet teplôt uložených vo FLASH
-/*    uint32_t tempCount = Flash_GetTemperatureCount();
-    LCD_DisplayCount(tempCount); // Zobrazenie poctu teplôt na LCD
-    HAL_Delay(5000);             // Zobrazenie na 5 sekúnd
-*/
+
     // Hlavná sluèka
     bool showMessage = false;               // Indikuje, èi sa má zobrazova správa
     bool usbPreviouslyConnected = false;    // Stav predchádzajúceho pripojenia USB
