@@ -22,6 +22,8 @@ static uint32_t find_free_position(void) {
     for (uint8_t x = 0x00; x <= 0x0F; x++) {
         uint32_t expectedPattern = 0x70563412U | (x << 24);  // Vytvorte požadovaný pattern s X od 0 do F
 
+        addr = QSPI_START_ADDRESS; // Reset adresy na zaèiatok QSPI pre každý nový pattern
+
         // Preh¾adáme sektory v pamäti
         while (addr < N25Q128A_FLASH_SIZE) {
             // Èítame prvé 4 bajty (pattern) na zaèiatku sektora
