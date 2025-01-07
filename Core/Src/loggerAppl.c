@@ -6,6 +6,7 @@
 #include "flash_storage.h"
 #include "main.h"
 #include "stm32l4xx.h"
+#include "gpio.h"
 #include <stdbool.h>
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
