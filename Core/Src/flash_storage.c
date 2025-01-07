@@ -56,7 +56,7 @@ static uint32_t find_free_position(void) {
             addr += SECTOR_SIZE;
         }
     }
-    
+
     return QSPI_MEMORY_FULL; // Ak sme nenašli vo¾né miesto
 }
 
@@ -68,7 +68,7 @@ void flash_temperatureInit(void) {
 }
 
 void flash_updateCounter(void) {
-    freePosition = find_free_position();    
+    freePosition = find_free_position();
 }
 
 bool flash_temperatureSave(float temperature) {
@@ -79,7 +79,7 @@ bool flash_temperatureSave(float temperature) {
     if (freePosition >= N25Q128A_FLASH_SIZE || freePosition == QSPI_MEMORY_FULL) {
         return false; // Pamä je plná
     }
-    
+
     // Konverzia teploty na 4-bajtové dáta
     data[0] = (uint8_t)(temp & 0xFF);        // LSB
     data[1] = (uint8_t)((temp >> 8) & 0xFF); // MSB

@@ -44,7 +44,7 @@ int loggerAppl_start(void) {
             showMessage = true;
             showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // 5 sekúnd
         }
-        
+
         // Ak sa USB odpojilo
         if (!usbConnected && usbPreviouslyConnected) {
             // Akcia pri odpojení USB
@@ -100,7 +100,7 @@ static void logger_GPIO_Init(void) {
     GPIO_InitStruct.Pull = GPIO_NOPULL; // Interný pull-up je možný
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    
+
     MX_GPIO_Init();         // init LED
 }
 
