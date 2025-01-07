@@ -79,7 +79,6 @@ bool flash_temperatureSave(float temperature) {
     if (freePosition >= N25Q128A_FLASH_SIZE || freePosition == QSPI_MEMORY_FULL) {
         return false; // Pamä je plná
     }
-    counter++;  // Inkrementácia counteru pri kadom zápise teploty
     
     // Konverzia teploty na 4-bajtové dáta
     data[0] = (uint8_t)(temp & 0xFF);        // LSB
@@ -88,10 +87,13 @@ bool flash_temperatureSave(float temperature) {
     data[3] = counter & 0xFFu;            // Doplnujúci bajt pre èas alebo inú hodnotu
 
     // Zápis do FLASH
-    BSP_QSPI_Write(data, freePosition, sizeof(data));
+    if(QSPI_OK != BSP_QSPI_Write(data, freePosition, sizeof(data))) {
+        return false;
+    }
 
     // Aktualizácia vo¾nej pozície
     freePosition += RECORD_SIZE;
+    counter++;  // Inkrementácia counteru len, ak bol zápis úspešnı
 
     // Ak prekroèíme hranicu sektora, h¾adáme ïalší
     if (freePosition % SECTOR_SIZE == 0) {
