@@ -5,11 +5,14 @@
 #include "stm32l476g_discovery.h"
 #include "flash_storage.h"
 #include "main.h"
+#include "stm32l4xx.h"
 #include <stdbool.h>
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
 
 static void logger_GPIO_Init(void);
+static void checkButtonAndErase(void);
+static void flash_resetMemory(void);
 
 int loggerAppl_start(void) {
     // Inicializ·cia GPIO
@@ -17,18 +20,11 @@ int loggerAppl_start(void) {
 
     // Inicializ·cia modulov
     LCD_Init();              // Inicializ·cia LCD displeja
+    LCD_DisplayMessage("BOOT..");
     Temperature_Init();      // Inicializ·cia DS18B20
     flash_temperatureInit();
     while(HAL_OK != BSP_JOY_Init(JOY_MODE_GPIO));
-    if(JOY_SEL == BSP_JOY_GetState()) {
-        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
-        for(uint16_t sector = 0u; sector < 256u; sector++) {
-            if(QSPI_OK != BSP_QSPI_Erase_Sector(sector)) {
-                while(1);
-            }
-            while(QSPI_OK != BSP_QSPI_GetStatus());
-        }
-    }
+    checkButtonAndErase();
 
     // Hlavn· sluËka
     bool showMessage = false;               // Indikuje, Ëi sa m· zobrazovaù spr·va
@@ -54,7 +50,7 @@ int loggerAppl_start(void) {
             // Akcia pri odpojenÌ USB
             LCD_DisplayMessage("NO USB"); // Zobrazenie spr·vy pri odpojenÌ
             showMessage = true;
-            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // 5 sek˙nd
+            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 2000; // 2 sek˙nd
             flash_updateCounter();
         }
 
@@ -104,4 +100,31 @@ static void logger_GPIO_Init(void) {
     GPIO_InitStruct.Pull = GPIO_NOPULL; // Intern˝ pull-up je moûn˝
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    
+    MX_GPIO_Init();         // init LED
+}
+
+static void flash_resetMemory(void) {
+    // Zastavte vöetky z·vislÈ ˙lohy (napr. USB alebo ËÌtanie)
+    HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+
+    LCD_DisplayMessage("Erase-");
+    // Vymaûte FLASH pam‰ù
+    if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+        LCD_DisplayMessage("-Fail-");
+        for(;;);
+    }
+    flash_updateCounter();
+    // Reaktivujte preruöenia
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+}
+
+static void checkButtonAndErase(void) {
+    HAL_Delay(100); // Stabiliz·cia tlaËidla
+    if(JOY_SEL == BSP_JOY_GetState()) {
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+        flash_resetMemory();
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+    }
 }
