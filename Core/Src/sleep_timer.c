@@ -40,3 +40,11 @@ void delay_us(uint32_t us) {
         // Caká na uplynutie požadovaného casu
     }
 }
+
+void TIMER_set(uint32_t *timer, uint32_t duration_ms) {
+    *timer = HAL_GetTick() + duration_ms;
+}
+
+bool TIMER_isExpired(uint32_t timer) {
+    return (int32_t)(HAL_GetTick() - timer) >= 0;
+}

@@ -43,7 +43,7 @@ int loggerAppl_start(void) {
         if (usbConnected && !usbPreviouslyConnected) {
             LCD_DisplayMessage("-USB- ");    // Zobrazenie správy USB
             showMessage = true;
-            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // 5 sekúnd
+            TIMER_set(&showMessageEndTime, 5000); // 5 sekúnd
         }
 
         // Ak sa USB odpojilo
@@ -51,34 +51,34 @@ int loggerAppl_start(void) {
             // Akcia pri odpojení USB
             LCD_DisplayMessage("NO USB"); // Zobrazenie správy pri odpojení
             showMessage = true;
-            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 2000; // 2 sekúnd
+            TIMER_set(&showMessageEndTime, 2000); // 2 sekúnd
             flash_updateCounter();
         }
 
         // Ak uplynulo 5 sekúnd od zobrazenia USB správy
-        if (showMessage && (int32_t)(DWT->CYCCNT - showMessageEndTime) >= 0) {
+        if (showMessage && TIMER_isExpired(showMessageEndTime)) {
             showMessage = false;
         }
 
         // Ak sa má zobrazova hodnota `flash_getCounter`
         if (!showMessage) {
-            if ((int32_t)(DWT->CYCCNT - counterPeriodEnd) >= 0) {
-                counterPeriodEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // Každých 5 sekúnd
+            if (TIMER_isExpired(counterPeriodEnd)) {
+                TIMER_set(&counterPeriodEnd, 5000); // Každých 5 sekúnd
                 LCD_DisplayCount(flash_getCounter());
-                counterDisplayEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 1000; // Zobrazenie na 1 sekundu
+                TIMER_set(&counterDisplayEnd, 1000); // Zobrazenie na 1 sekundu
                 showMessage = true;
-            } else if ((int32_t)(DWT->CYCCNT - counterDisplayEnd) >= 0) {
+            } else if (TIMER_isExpired(counterDisplayEnd)) {
                 // Ak uplynula 1 sekunda od zobrazenia counter
                 float temperature = Temperature_Read(); // Naèítanie teploty
                 LCD_DisplayTemperature(temperature);   // Zobrazenie teploty na LCD
 
-                // Ak USB nie je pripojené, zapisuje sa teplota do FLASH každé 4 sekundy
-                if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
-                    saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 30000; // Zapis kazdych 30 sekund
+                // Ak USB nie je pripojené, zapisuje sa teplota do FLASH každé 30 sekúnd
+                if (!usbConnected && TIMER_isExpired(saveTimeEnd)) {
+                    TIMER_set(&saveTimeEnd, 30000); // Zapis kazdych 30 sekúnd
                     if (!flash_temperatureSave(temperature)) {
                         LCD_DisplayMessage("-FULL-");
                         showMessage = true;
-                        showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 1000; // 1 sekunda
+                        TIMER_set(&showMessageEndTime, 1000); // 1 sekunda
                     }
                 }
             }
