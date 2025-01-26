@@ -4,6 +4,7 @@
 #include "stm32l476g_discovery_qspi.h"
 #include "stm32l476g_discovery.h"
 #include "flash_storage.h"
+#include "sleep_timer.h"
 #include "main.h"
 #include "stm32l4xx.h"
 #include "gpio.h"
