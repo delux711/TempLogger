@@ -22,6 +22,13 @@ void Temperature_Init(void) {
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     HAL_GPIO_Init(DS18B20_GPIO_PORT, &GPIO_InitStruct);
     HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
+    /* // test pin ak by trebalo
+    GPIO_InitStruct.Pin = GPIO_PIN_7;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP; // Výstupný mód - Push-Pull
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
+    HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+    */
     delay_us(1000); // Držat linku nízko na 1ms
 }
 
@@ -57,21 +64,37 @@ float Temperature_Read(void) {
 
 static bool OneWire_Reset(void) {
     bool retState = false;
+
     // Reset OneWire linky
     HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_RESET);
-    delay_us(480); // Držat linku nízko na 480 µs
+    delay_us(480); // Držte linku nízko na 480 µs
     HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
-    delay_us(70);  // Cakajte na odpoved od senzora
-    
-    uint32_t masterRxTime = DWT->CYCCNT + (SystemCoreClock / 1000000) * 500;  // 480us minimalny cas pre MASTER Rx reset pulz
-    
-        uint32_t waitToAnswer = DWT->CYCCNT + (SystemCoreClock / 1000000) * 60;  // Nastavenie cielového casu
-        while (DWT->CYCCNT < waitToAnswer);
-        if(HAL_GPIO_ReadPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN) == GPIO_PIN_RESET) {
-            retState = true;
+
+    // Nastavte èas na èakanie
+    uint32_t startTime = TIM2->CNT;
+    uint32_t waitToAnswerEnd = startTime + (SystemCoreClock / 1000000) * 240;  // 240 µs
+    uint32_t waitToReleaseEnd = startTime + (SystemCoreClock / 1000000) * 480; // 480 µs
+
+    // Èakajte na zaèiatok odpovede (po 15 µs)
+    delay_us(15);
+
+    // Senzor drží linku na 0 medzi 60–240 µs
+    while (TIM2->CNT < waitToAnswerEnd) {
+        if (HAL_GPIO_ReadPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN) == GPIO_PIN_RESET) {
+            retState = true; // Senzor odpovedá
+            break; // Odpoveï bola detegovaná, ukonèite cyklus
         }
-    while (DWT->CYCCNT < masterRxTime);
-    return retState;
+    }
+    if (retState) {
+        // Senzor drží linku na 0 medzi 60–240 µs
+        while (TIM2->CNT < waitToReleaseEnd) {
+            if (HAL_GPIO_ReadPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN) == GPIO_PIN_SET) {
+                break; // senzor uvolnil linku, komunikácia bola úspešná
+            }
+        }
+    }
+
+    return retState; // Vrátte výsledok
 }
 
 static void OneWire_WriteByte(uint8_t data) {
@@ -83,9 +106,9 @@ static void OneWire_WriteByte(uint8_t data) {
             HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
             delay_us(45);
         } else {
-            delay_us(44);
+            delay_us(42);
             HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
-            delay_us(1);
+            delay_us(3);
         }
         data >>= 1;
     }
@@ -96,13 +119,13 @@ static uint8_t OneWire_ReadByte(void) {
     for (int i = 0; i < 8; i++) {
         // Cítat jednotlivé bity
         HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_RESET);
-        delay_us(2); // Zaciatok cítania
+        delay_us(10); // Zaciatok cítania
         HAL_GPIO_WritePin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN, GPIO_PIN_SET);
-        delay_us(2);
+        delay_us(10);
         if (HAL_GPIO_ReadPin(DS18B20_GPIO_PORT, DS18B20_GPIO_PIN)) {
             data |= (1 << i);
         }
-        delay_us(58);
+        delay_us(40);
     }
     return data;
 }
