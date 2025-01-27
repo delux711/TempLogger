@@ -8,6 +8,8 @@ BLOCK_SIZE = 0x1000  # Vzdialenosť medzi vzormi
 RECORD_SIZE = 4  # Veľkosť záznamu (2 bajty pre teplotu, 2 bajty pre poradové číslo)
 
 def parse_binary_file(input_file, output_file):
+    last_valid_temperature = None  # Premenná pre poslednú platnú teplotu
+
     with open(input_file, 'rb') as file:
         data = file.read()
 
@@ -33,9 +35,17 @@ def parse_binary_file(input_file, output_file):
 
                         # Rozbaliť záznam
                         raw_temperature, sequence_number = struct.unpack('<HH', record)
-
-                        # Konverzia teploty
-                        temperature = raw_temperature / 16.0
+                        
+                        # Skontrolovať platnosť teploty
+                        if raw_temperature == 0:  # Predpokladáme, že teplota 0 je neplatná
+                            if last_valid_temperature is not None:
+                                temperature = last_valid_temperature  # Použitie poslednej platnej teploty
+                            else:
+                                continue  # Ak nemáme žiadnu platnú teplotu, preskočíme tento záznam
+                        else:
+                            # Konverzia teploty
+                            temperature = raw_temperature / 16.0
+                            last_valid_temperature = temperature  # Uložíme platnú teplotu
 
                         # Výpočet času na základe poradového čísla (predpoklad 30s intervaly)
                         time_seconds = sequence_number * 30
