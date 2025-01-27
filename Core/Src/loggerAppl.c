@@ -4,46 +4,30 @@
 #include "stm32l476g_discovery_qspi.h"
 #include "stm32l476g_discovery.h"
 #include "flash_storage.h"
+#include "sleep_timer.h"
 #include "main.h"
+#include "stm32l4xx.h"
+#include "gpio.h"
 #include <stdbool.h>
 //#include "usb_mass_storage.h"
 //#include "low_power.h"
 
 static void logger_GPIO_Init(void);
+static void checkButtonAndErase(void);
+static void flash_resetMemory(void);
 
 int loggerAppl_start(void) {
     // Inicializ·cia GPIO
     logger_GPIO_Init();
 
-    /*
-    LCD_Init();
-    LCD_DisplayTemperature(25.5);
-    HAL_Delay(2000);
-    LCD_DisplayMessage("Hello");
-    HAL_Delay(2000);
-    LCD_DisplayCount(123);
-    HAL_Delay(2000);
-    */
     // Inicializ·cia modulov
     LCD_Init();              // Inicializ·cia LCD displeja
+    LCD_DisplayMessage("BOOT..");
     Temperature_Init();      // Inicializ·cia DS18B20
     flash_temperatureInit();
-    (void)BSP_JOY_Init(JOY_MODE_GPIO);
-    if(JOY_SEL == BSP_JOY_GetState()) {
-        if(QSPI_OK != BSP_QSPI_Erase_Chip())
-        {
-            while(1);
-        }
-    }
-/*    Flash_Init();            // Inicializ·cia FLASH pam‰te
-    USB_Init();              // Inicializ·cia USB
-    LowPower_Init();         // Inicializ·cia reûimov nÌzkej spotreby
-*/
-    // Pocet teplÙt uloûen˝ch vo FLASH
-/*    uint32_t tempCount = Flash_GetTemperatureCount();
-    LCD_DisplayCount(tempCount); // Zobrazenie poctu teplÙt na LCD
-    HAL_Delay(5000);             // Zobrazenie na 5 sek˙nd
-*/
+    while(HAL_OK != BSP_JOY_Init(JOY_MODE_GPIO));
+    checkButtonAndErase();
+
     // Hlavn· sluËka
     bool showMessage = false;               // Indikuje, Ëi sa m· zobrazovaù spr·va
     bool usbPreviouslyConnected = false;    // Stav predch·dzaj˙ceho pripojenia USB
@@ -60,42 +44,42 @@ int loggerAppl_start(void) {
         if (usbConnected && !usbPreviouslyConnected) {
             LCD_DisplayMessage("-USB- ");    // Zobrazenie spr·vy USB
             showMessage = true;
-            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // 5 sek˙nd
+            TIMER_set(&showMessageEndTime, 5000); // 5 sek˙nd
         }
-        
+
         // Ak sa USB odpojilo
         if (!usbConnected && usbPreviouslyConnected) {
             // Akcia pri odpojenÌ USB
             LCD_DisplayMessage("NO USB"); // Zobrazenie spr·vy pri odpojenÌ
             showMessage = true;
-            showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // 5 sek˙nd
+            TIMER_set(&showMessageEndTime, 2000); // 2 sek˙nd
             flash_updateCounter();
         }
 
         // Ak uplynulo 5 sek˙nd od zobrazenia USB spr·vy
-        if (showMessage && (int32_t)(DWT->CYCCNT - showMessageEndTime) >= 0) {
+        if (showMessage && TIMER_isExpired(showMessageEndTime)) {
             showMessage = false;
         }
 
         // Ak sa m· zobrazovaù hodnota `flash_getCounter`
         if (!showMessage) {
-            if ((int32_t)(DWT->CYCCNT - counterPeriodEnd) >= 0) {
-                counterPeriodEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 5000; // Kaûd˝ch 5 sek˙nd
+            if (TIMER_isExpired(counterPeriodEnd)) {
+                TIMER_set(&counterPeriodEnd, 5000); // Kaûd˝ch 5 sek˙nd
                 LCD_DisplayCount(flash_getCounter());
-                counterDisplayEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 1000; // Zobrazenie na 1 sekundu
+                TIMER_set(&counterDisplayEnd, 1000); // Zobrazenie na 1 sekundu
                 showMessage = true;
-            } else if ((int32_t)(DWT->CYCCNT - counterDisplayEnd) >= 0) {
+            } else if (TIMER_isExpired(counterDisplayEnd)) {
                 // Ak uplynula 1 sekunda od zobrazenia counter
                 float temperature = Temperature_Read(); // NaËÌtanie teploty
                 LCD_DisplayTemperature(temperature);   // Zobrazenie teploty na LCD
 
-                // Ak USB nie je pripojenÈ, zapisuje sa teplota do FLASH kaûdÈ 4 sekundy
-                if (!usbConnected && (int32_t)(DWT->CYCCNT - saveTimeEnd) >= 0) {
-                    saveTimeEnd = DWT->CYCCNT + (SystemCoreClock / 1000) * 30000; // Zapis kazdych 30 sekund
+                // Ak USB nie je pripojenÈ, zapisuje sa teplota do FLASH kaûdÈ 30 sek˙nd
+                if (!usbConnected && TIMER_isExpired(saveTimeEnd)) {
+                    TIMER_set(&saveTimeEnd, 30000); // Zapis kazdych 30 sek˙nd
                     if (!flash_temperatureSave(temperature)) {
                         LCD_DisplayMessage("-FULL-");
                         showMessage = true;
-                        showMessageEndTime = DWT->CYCCNT + (SystemCoreClock / 1000) * 1000; // 1 sekunda
+                        TIMER_set(&showMessageEndTime, 1000); // 1 sekunda
                     }
                 }
             }
@@ -118,4 +102,31 @@ static void logger_GPIO_Init(void) {
     GPIO_InitStruct.Pull = GPIO_NOPULL; // Intern˝ pull-up je moûn˝
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    MX_GPIO_Init();         // init LED
+}
+
+static void flash_resetMemory(void) {
+    // Zastavte vöetky z·vislÈ ˙lohy (napr. USB alebo ËÌtanie)
+    HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+
+    LCD_DisplayMessage("Erase-");
+    // Vymaûte FLASH pam‰ù
+    if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+        LCD_DisplayMessage("-Fail-");
+        for(;;);
+    }
+    flash_updateCounter();
+    // Reaktivujte preruöenia
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+}
+
+static void checkButtonAndErase(void) {
+    HAL_Delay(100); // Stabiliz·cia tlaËidla
+    if(JOY_SEL == BSP_JOY_GetState()) {
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+        flash_resetMemory();
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+    }
 }
